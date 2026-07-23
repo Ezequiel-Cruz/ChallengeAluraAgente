@@ -19,8 +19,8 @@ O agente processa documentos regulamentares em PDF e usa LangChain + OCI Generat
 - `src/agente_fintech_oci.py` — script Python principal do agente
 - `src/agente_fintech_oci.ipynb` — notebook de desenvolvimento e demonstração
 - `requirements.txt` — lista de dependências Python
-- `documentos_fintech/` — pasta de documentos PDF esperada pelo agente
-- `data/` e `docs/` — diretórios de apoio para dados e documentação
+- `data/` — pasta onde os PDFs regulatórios devem estar para o agente carregar
+- `docs/` — diretórios de apoio para dados e documentação
 
 ---
 
@@ -54,7 +54,7 @@ O agente processa documentos regulamentares em PDF e usa LangChain + OCI Generat
 - Python 3.11 ou superior
 - `pip` instalado
 - credenciais OCI configuradas
-- arquivos PDF dentro de `documentos_fintech/`
+- arquivos PDF dentro de `data/`
 
 ---
 
@@ -65,6 +65,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
+
+Se estiver usando o notebook, execute a primeira célula para instalar as dependências antes de prosseguir.
 
 ---
 
@@ -77,6 +79,7 @@ setx OCI_COMPARTMENT_ID "ocid1.compartment.oc1..seu_compartment_ocid"
 setx OCI_GENAI_ENDPOINT "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com"
 ```
 
+Se a variável `OCI_COMPARTMENT_ID` não estiver definida, o notebook e o script mostrarão uma mensagem indicando que a chamada ao modelo OCI precisa de um OCID válido.
 Se estiver executando em uma VM OCI com Instance Principal, atualize `auth_type` em `src/agente_fintech_oci.py` de `API_KEY` para `INSTANCE_PRINCIPAL`.
 
 ---
@@ -86,6 +89,8 @@ Se estiver executando em uma VM OCI com Instance Principal, atualize `auth_type`
 ```powershell
 python src\agente_fintech_oci.py
 ```
+
+O script procura automaticamente por PDFs em `data/` e, se não encontrar nenhum, informa o erro antes de tentar usar a OCI.
 
 Para testar com uma pergunta customizada:
 
@@ -111,7 +116,7 @@ O notebook `src/agente_fintech_oci.ipynb` apresenta a versão exploratória do p
 ## 📌 Observações importantes
 
 - O agente deve responder apenas com base nos documentos carregados.
-- Garanta que os PDFs estejam atualizados e consistentes com as políticas do banco.
+- Garanta que os PDFs estejam dentro de `data/` e estejam atualizados e consistentes com as políticas do banco.
 - Em produção, revise políticas de segurança e autenticação antes de expor qualquer serviço.
 
 ---
