@@ -7,21 +7,40 @@ from langchain_community.llms import OCIGenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-DEFAULT_DOCUMENT_DIR = Path("documentos_fintech")
-DEFAULT_COMPARTMENT_ID = os.getenv("OCI_COMPARTMENT_ID", "ocid1.compartment.oc1..seu_compartment_ocid")
-DEFAULT_OCI_ENDPOINT = os.getenv("OCI_GENAI_ENDPOINT", "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com")
+DEFAULT_DOCUMENT_DIRS = [Path("data"), Path("documentos_fintech")]
+DEFAULT_COMPARTMENT_ID = os.getenv("OCI_COMPARTMENT_ID", "").strip()
+DEFAULT_OCI_ENDPOINT = os.getenv("OCI_GENAI_ENDPOINT", "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com").strip()
 
 
-def load_documents(document_dir: Path = DEFAULT_DOCUMENT_DIR):
+def resolve_document_dir(document_dir: Path | None = None) -> Path:
+    """Resolve o diretório de documentos a partir do workspace atual."""
+    candidates = []
+    if document_dir is not None:
+        candidates.append(document_dir)
+    candidates.extend(DEFAULT_DOCUMENT_DIRS)
+
+    for candidate in candidates:
+        resolved = candidate if candidate.is_absolute() else Path(__file__).resolve().parent.parent / candidate
+        if resolved.exists():
+            return resolved
+
+    return Path(__file__).resolve().parent.parent / "data"
+
+
+def load_documents(document_dir: Path | None = None):
     """Carrega e divide PDFs regulatórios para criação da base de contexto."""
-    if not document_dir.exists():
+    resolved_dir = resolve_document_dir(document_dir)
+    if not resolved_dir.exists():
         raise FileNotFoundError(
-            f"Diretório de documentos não encontrado: {document_dir}. "
-            "Crie a pasta com os PDFs ou ajuste o caminho no script."
+            f"Diretório de documentos não encontrado: {resolved_dir}. "
+            "Coloque os PDFs na pasta data/ ou ajuste o caminho no script."
         )
 
-    loader = DirectoryLoader(str(document_dir), glob="*.pdf", loader_cls=PyPDFLoader)
+    loader = DirectoryLoader(str(resolved_dir), glob="*.pdf", loader_cls=PyPDFLoader)
     documents = loader.load()
+    if not documents:
+        raise FileNotFoundError(f"Nenhum PDF encontrado em {resolved_dir}")
+
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=120,
@@ -32,6 +51,10 @@ def load_documents(document_dir: Path = DEFAULT_DOCUMENT_DIR):
 
 def build_llm(compartment_id: str = DEFAULT_COMPARTMENT_ID, endpoint: str = DEFAULT_OCI_ENDPOINT):
     """Inicializa o modelo generativo OCI usado pelo agente."""
+    if not compartment_id:
+        raise ValueError(
+            "OCI_COMPARTMENT_ID não está configurado. Defina a variável de ambiente com um OCID válido da OCI."
+        )
     return OCIGenAI(
         model_id="cohere.command-r-plus",
         service_endpoint=endpoint,
@@ -75,12 +98,16 @@ def main():
         print(error)
         return
 
-    pergunta = os.getenv(
-        "OCI_BANK_QUERY",
-        "Qual é a tarifa para saque no Banco24Horas e qual o limite do Pix noturno?",
-    )
+    try:
+        pergunta = os.getenv(
+            "OCI_BANK_QUERY",
+            "Qual é a tarifa para saque no Banco24Horas e qual o limite do Pix noturno?",
+        )
+        resposta = consultar_banco_digital(pergunta, documents)
+    except ValueError as error:
+        print(error)
+        return
 
-    resposta = consultar_banco_digital(pergunta, documents)
     print("Pergunta:", pergunta)
     print("Resposta:\n", resposta)
 
